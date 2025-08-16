@@ -19,34 +19,49 @@
       box-sizing: border-box;
     }
 
-    .boggle-tile {
+    .boggle-board-active {
+      /* Removed highlight styles */
+    }
+
+    .boggle-table {
+      border-collapse: separate;
+      border-spacing: 8px;
+      margin: 0 auto;
+      background: black;
+    }
+
+    .boggle-td {
       background: rgb(230, 79, 48);
       border: 2px solid black;
       color: white;
       font-size: 2.5rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      text-align: center;
+      vertical-align: middle;
+      width: 100px;
+      height: 100px;
       user-select: none;
       cursor: pointer;
-      transition: background 0.2s;
-      height: 100px;
-      width: 100px;
+      transition: background 0.2s, color 0.2s;
     }
 
-    .boggle-tile:hover {
+    .boggle-td:hover {
       background: #ffb199;
       color: black;
     }
 
-    .boggle-tile.selected {
+    .boggle-td.selected {
       background: #fff;
       color: rgb(230, 79, 48);
     }
 
-    .boggle-tile.correct {
+    .boggle-td.correct {
       background: #4caf50;
       color: white;
+    }
+
+    .boggle-td.dragging {
+      box-shadow: 0 0 20px 5px #ffc107 inset;
+      outline: 2px solid #ffc107;
     }
 
     .current-word {
@@ -60,7 +75,7 @@
 <body>
   <div class="container-fluid min-vh-100 d-flex flex-column justify-content-center align-items-center">
     <div class="current-word" id="currentWord"></div>
-    <div class="row g-2" id="boggleBoard"></div>
+    <div id="boggleBoard"></div>
     <div class="word-list" id="wordList"></div>
   </div>
   <!-- Bootstrap JS Bundle -->
@@ -94,37 +109,42 @@
       }
     }
 
-    // Render board using Bootstrap grid
+    // Render board using table
     function renderBoard() {
-      boggleBoard.innerHTML = '';
+      let table = document.createElement('table');
+      table.className = 'boggle-table';
       for (let i = 0; i < boardSize; i++) {
-        const rowDiv = document.createElement('div');
-        rowDiv.className = 'd-flex justify-content-center';
+        let tr = document.createElement('tr');
         for (let j = 0; j < boardSize; j++) {
-          const tile = document.createElement('div');
-          tile.className = 'boggle-tile d-flex align-items-center justify-content-center m-1';
-          tile.textContent = board[i][j];
-          tile.dataset.row = i;
-          tile.dataset.col = j;
+          let td = document.createElement('td');
+          td.className = 'boggle-td';
+          td.textContent = board[i][j];
+          td.dataset.row = i;
+          td.dataset.col = j;
+          if (isDragging) {
+            td.classList.add('dragging');
+          }
           if (selectedTiles.some(t => t.row === i && t.col === j)) {
-            tile.classList.add('selected');
+            td.classList.add('selected');
           }
           if (selectedTiles.length > 0 && selectedTiles.every(t => t.correct)) {
             if (selectedTiles.some(t => t.row === i && t.col === j)) {
-              tile.classList.remove('selected');
-              tile.classList.add('correct');
+              td.classList.remove('selected');
+              td.classList.add('correct');
             }
           }
-          rowDiv.appendChild(tile);
+          tr.appendChild(td);
         }
-        boggleBoard.appendChild(rowDiv);
+        table.appendChild(tr);
       }
+      boggleBoard.innerHTML = '';
+      boggleBoard.appendChild(table);
     }
 
-    // Mouse drag selection
+    // Mouse drag selection and board highlight
     let isDragging = false;
     boggleBoard.addEventListener('mousedown', e => {
-      if (e.target.classList.contains('boggle-tile')) {
+      if (e.target.classList.contains('boggle-td')) {
         isDragging = true;
         selectedTiles = [];
         selectTile(e.target);
@@ -133,7 +153,7 @@
       }
     });
     boggleBoard.addEventListener('mouseover', e => {
-      if (isDragging && e.target.classList.contains('boggle-tile')) {
+      if (isDragging && e.target.classList.contains('boggle-td')) {
         selectTile(e.target);
         renderBoard();
         updateCurrentWord();
@@ -142,8 +162,8 @@
     document.addEventListener('mouseup', () => {
       if (isDragging) {
         isDragging = false;
-        checkWord();
         renderBoard();
+        checkWord();
         updateCurrentWord();
       }
     });
