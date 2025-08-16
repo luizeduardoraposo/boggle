@@ -1,116 +1,141 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-br">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Boggle</title>
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body {
+      background: #222;
+      color: #fff;
+      font-family: Arial, sans-serif;
       margin: 0;
       padding: 0;
-      background: black;
-      color: white;
-      font-family: Arial, sans-serif;
-      width: 100vw;
-      height: 100vh;
-      box-sizing: border-box;
-    }
-
-    .boggle-board-active {
-      /* Removed highlight styles */
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
     }
 
     .boggle-table {
       border-collapse: separate;
-      border-spacing: 8px;
-      margin: 0 auto;
-      background: black;
+      border-spacing: 4px;
+      background: rgb(230, 79, 48);
+      margin: 20px 0;
     }
 
     .boggle-td {
-      background: rgb(230, 79, 48);
-      border: 2px solid black;
-      color: white;
-      font-size: 2.5rem;
+      width: 50px;
+      height: 50px;
       text-align: center;
       vertical-align: middle;
-      width: 100px;
-      height: 100px;
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #fff;
+      background: rgb(230, 79, 48);
+      border: 2px solid #000;
       user-select: none;
       cursor: pointer;
       transition: background 0.2s, color 0.2s;
-    }
-
-    .boggle-td:hover {
-      background: #ffb199;
-      color: black;
     }
 
     .boggle-td.selected {
       background: #fff;
       color: rgb(230, 79, 48);
     }
-
-    .boggle-td.correct {
-      background: #4caf50;
-      color: white;
-    }
-
-    .boggle-td.dragging {
-      box-shadow: 0 0 20px 5px #ffc107 inset;
-      outline: 2px solid #ffc107;
-    }
-
-    .current-word {
-      font-weight: bold;
-      margin-bottom: 10px;
-      color: white;
-    }
   </style>
 </head>
 
 <body>
-  <div class="container-fluid min-vh-100 d-flex flex-column justify-content-center align-items-center">
-    <div class="current-word" id="currentWord"></div>
-    <div id="boggleBoard"></div>
-    <div class="word-list" id="wordList"></div>
-  </div>
-  <!-- Bootstrap JS Bundle -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <h1>Boggle 8x8</h1>
+  <div id="boggleBoard"></div>
+  <div id="currentWord" style="font-size:1.2rem; margin-bottom:10px;"></div>
+  <div id="foundWords" style="font-size:1rem;"></div>
   <script>
-    const boardSize = 4;
-    const board = [];
-    const boggleBoard = document.getElementById('boggleBoard');
-    const currentWordDiv = document.getElementById('currentWord');
-    const wordListDiv = document.getElementById('wordList');
+    const boardSize = 8;
+    const board = Array.from({ length: boardSize }, () => Array(boardSize).fill(''));
     let selectedTiles = [];
     let foundWords = [];
-    let dictionary = new Set();
+    let dictionary = [];
+    let isDragging = false;
 
-    // Load dictionary from file
+    // Função para carregar o dicionário
     fetch('mydictionary.txt')
       .then(response => response.text())
       .then(text => {
-        dictionary = new Set(text.split(/\r?\n/).map(w => w.trim().toLowerCase()).filter(w => w.length > 0));
+        dictionary = text.split(/\r?\n/).map(w => w.trim().toUpperCase()).filter(w => w.length > 0);
+        fillBoardWithWords();
+        renderBoard();
       });
 
-    // Generate random board
-    function randomLetter() {
-      const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-      return letters[Math.floor(Math.random() * letters.length)];
-    }
-    for (let i = 0; i < boardSize; i++) {
-      board[i] = [];
-      for (let j = 0; j < boardSize; j++) {
-        board[i][j] = randomLetter();
+    // Preenche o tabuleiro com palavras do dicionário em todas as direções
+    function fillBoardWithWords() {
+      // Limpa o tabuleiro
+      for (let i = 0; i < boardSize; i++)
+        for (let j = 0; j < boardSize; j++)
+          board[i][j] = '';
+
+      // Direções: [dx, dy]
+      const directions = [
+        [0, 1],   // direita
+        [1, 0],   // baixo
+        [1, 1],   // diagonal baixo-direita
+        [-1, 1],  // diagonal cima-direita
+        [0, -1],  // esquerda
+        [-1, 0],  // cima
+        [-1, -1], // diagonal cima-esquerda
+        [1, -1],  // diagonal baixo-esquerda
+      ];
+
+      // Tenta inserir palavras do dicionário
+      for (const word of dictionary) {
+        let placed = false;
+        for (let attempt = 0; attempt < 100 && !placed; attempt++) {
+          const dir = directions[Math.floor(Math.random() * directions.length)];
+          const reverse = Math.random() < 0.5;
+          const w = reverse ? word.split('').reverse().join('') : word;
+          const len = w.length;
+          const startRow = Math.floor(Math.random() * boardSize);
+          const startCol = Math.floor(Math.random() * boardSize);
+
+          let r = startRow, c = startCol;
+          let fits = true;
+          for (let k = 0; k < len; k++) {
+            if (
+              r < 0 || r >= boardSize ||
+              c < 0 || c >= boardSize ||
+              (board[r][c] !== '' && board[r][c] !== w[k])
+            ) {
+              fits = false;
+              break;
+            }
+            r += dir[0];
+            c += dir[1];
+          }
+          if (fits) {
+            r = startRow; c = startCol;
+            for (let k = 0; k < len; k++) {
+              board[r][c] = w[k];
+              r += dir[0];
+              c += dir[1];
+            }
+            placed = true;
+          }
+        }
       }
+      // Preenche espaços vazios com letras aleatórias
+      const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      for (let i = 0; i < boardSize; i++)
+        for (let j = 0; j < boardSize; j++)
+          if (board[i][j] === '')
+            board[i][j] = letters[Math.floor(Math.random() * letters.length)];
     }
 
-    // Render board using table
+    // Renderiza o tabuleiro
     function renderBoard() {
+      const boardDiv = document.getElementById('boggleBoard');
       let table = document.createElement('table');
       table.className = 'boggle-table';
       for (let i = 0; i < boardSize; i++) {
@@ -121,29 +146,19 @@
           td.textContent = board[i][j];
           td.dataset.row = i;
           td.dataset.col = j;
-          if (isDragging) {
-            td.classList.add('dragging');
-          }
           if (selectedTiles.some(t => t.row === i && t.col === j)) {
             td.classList.add('selected');
-          }
-          if (selectedTiles.length > 0 && selectedTiles.every(t => t.correct)) {
-            if (selectedTiles.some(t => t.row === i && t.col === j)) {
-              td.classList.remove('selected');
-              td.classList.add('correct');
-            }
           }
           tr.appendChild(td);
         }
         table.appendChild(tr);
       }
-      boggleBoard.innerHTML = '';
-      boggleBoard.appendChild(table);
+      boardDiv.innerHTML = '';
+      boardDiv.appendChild(table);
     }
 
-    // Mouse drag selection and board highlight
-    let isDragging = false;
-    boggleBoard.addEventListener('mousedown', e => {
+    // Eventos de mouse para seleção
+    document.getElementById('boggleBoard').addEventListener('mousedown', e => {
       if (e.target.classList.contains('boggle-td')) {
         isDragging = true;
         selectedTiles = [];
@@ -152,7 +167,7 @@
         updateCurrentWord();
       }
     });
-    boggleBoard.addEventListener('mouseover', e => {
+    document.getElementById('boggleBoard').addEventListener('mouseover', e => {
       if (isDragging && e.target.classList.contains('boggle-td')) {
         selectTile(e.target);
         renderBoard();
@@ -178,22 +193,17 @@
 
     function updateCurrentWord() {
       const word = selectedTiles.map(t => t.letter).join('');
-      currentWordDiv.textContent = word;
+      document.getElementById('currentWord').textContent = word;
     }
 
     function checkWord() {
-      const word = selectedTiles.map(t => t.letter).join('').toLowerCase();
-      if (word.length > 2 && dictionary.has(word) && !foundWords.includes(word)) {
+      const word = selectedTiles.map(t => t.letter).join('');
+      if (word.length > 2 && dictionary.includes(word) && !foundWords.includes(word)) {
         foundWords.push(word);
-        selectedTiles = selectedTiles.map(t => ({ ...t, correct: true }));
-        wordListDiv.textContent = foundWords.join(', ');
-      } else {
-        selectedTiles = [];
+        document.getElementById('foundWords').textContent = foundWords.join(', ');
       }
+      selectedTiles = [];
     }
-
-    renderBoard();
-    updateCurrentWord();
   </script>
 </body>
 
