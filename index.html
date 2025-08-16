@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boggle</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: rgb(230, 79, 48);
+      color: white;
+      font-family: Arial, sans-serif;
+      width: 100vw;
+      height: 100vh;
+      box-sizing: border-box;
+    }
+
+    .boggle-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    .boggle-board {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      gap: 4px;
+      width: 80vw;
+      max-width: 600px;
+      aspect-ratio: 1 / 1;
+      background: black;
+      margin-bottom: 20px;
+    }
+
+    .boggle-tile {
+      background: rgb(230, 79, 48);
+      border: 2px solid black;
+      color: white;
+      font-size: 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .boggle-tile.selected {
+      background: #fff;
+      color: rgb(230, 79, 48);
+    }
+
+    .boggle-tile.correct {
+      background: #4caf50;
+      color: white;
+    }
+
+    .word-list {
+      margin-top: 10px;
+      font-size: 1.2rem;
+      color: white;
+    }
+
+    .current-word {
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: white;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="boggle-container">
+    <div class="current-word" id="currentWord"></div>
+    <div class="boggle-board" id="boggleBoard"></div>
+    <div class="word-list" id="wordList"></div>
+  </div>
+  <script>
+    const boardSize = 4;
+    const board = [];
+    const boggleBoard = document.getElementById('boggleBoard');
+    const currentWordDiv = document.getElementById('currentWord');
+    const wordListDiv = document.getElementById('wordList');
+    let selectedTiles = [];
+    let foundWords = [];
+    let dictionary = new Set();
+
+    // Load dictionary from file
+    fetch('mydictionary.txt')
+      .then(response => response.text())
+      .then(text => {
+        dictionary = new Set(text.split(/\r?\n/).map(w => w.trim().toLowerCase()).filter(w => w.length > 0));
+      });
+
+    // Generate random board
+    function randomLetter() {
+      const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      return letters[Math.floor(Math.random() * letters.length)];
+    }
+    for (let i = 0; i < boardSize; i++) {
+      board[i] = [];
+      for (let j = 0; j < boardSize; j++) {
+        board[i][j] = randomLetter();
+      }
+    }
+
+    // Render board
+    function renderBoard() {
+      boggleBoard.innerHTML = '';
+      for (let i = 0; i < boardSize; i++) {
+        for (let j = 0; j < boardSize; j++) {
+          const tile = document.createElement('div');
+          tile.className = 'boggle-tile';
+          tile.textContent = board[i][j];
+          tile.dataset.row = i;
+          tile.dataset.col = j;
+          if (selectedTiles.some(t => t.row === i && t.col === j)) {
+            tile.classList.add('selected');
+          }
+          if (selectedTiles.length > 0 && selectedTiles.every(t => t.correct)) {
+            if (selectedTiles.some(t => t.row === i && t.col === j)) {
+              tile.classList.remove('selected');
+              tile.classList.add('correct');
+            }
+          }
+          boggleBoard.appendChild(tile);
+        }
+      }
+    }
+
+    // Mouse drag selection
+    let isDragging = false;
+    boggleBoard.addEventListener('mousedown', e => {
+      if (e.target.classList.contains('boggle-tile')) {
+        isDragging = true;
+        selectedTiles = [];
+        selectTile(e.target);
+        renderBoard();
+        updateCurrentWord();
+      }
+    });
+    boggleBoard.addEventListener('mouseover', e => {
+      if (isDragging && e.target.classList.contains('boggle-tile')) {
+        selectTile(e.target);
+        renderBoard();
+        updateCurrentWord();
+      }
+    });
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        checkWord();
+        renderBoard();
+        updateCurrentWord();
+      }
+    });
+
+    function selectTile(tile) {
+      const row = parseInt(tile.dataset.row);
+      const col = parseInt(tile.dataset.col);
+      if (!selectedTiles.some(t => t.row === row && t.col === col)) {
+        selectedTiles.push({ row, col, letter: board[row][col] });
+      }
+    }
+
+    function updateCurrentWord() {
+      const word = selectedTiles.map(t => t.letter).join('');
+      currentWordDiv.textContent = word;
+    }
+
+    function checkWord() {
+      const word = selectedTiles.map(t => t.letter).join('').toLowerCase();
+      if (word.length > 2 && dictionary.has(word) && !foundWords.includes(word)) {
+        foundWords.push(word);
+        selectedTiles = selectedTiles.map(t => ({ ...t, correct: true }));
+        wordListDiv.textContent = foundWords.join(', ');
+      } else {
+        selectedTiles = [];
+      }
+    }
+
+    renderBoard();
+    updateCurrentWord();
+  </script>
+</body>
+
+</html>
