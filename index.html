@@ -4,80 +4,125 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Boggle</title>
+  <title>Boggle Canvas & SVG</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body {
-      background: #222;
+      background: #000;
       color: #fff;
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
       min-height: 100vh;
+    }
+
+    #game-area {
+      background: rgb(230, 79, 48);
+      border-radius: 1rem;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
+      min-height: 80vh;
+      min-width: 80vw;
+      box-shadow: 0 0 20px #222;
     }
 
-    .boggle-table {
-      border-collapse: separate;
-      border-spacing: 4px;
+    #boggle-canvas {
+      display: block;
       background: rgb(230, 79, 48);
-      margin: 20px 0;
+      border-radius: 1rem;
+      margin: 20px;
     }
 
-    .boggle-td {
-      width: 50px;
-      height: 50px;
-      text-align: center;
-      vertical-align: middle;
-      font-size: 1.5rem;
-      font-weight: bold;
+    #svg-overlay {
+      position: absolute;
+      left: 0;
+      top: 0;
+      pointer-events: none;
+    }
+
+    .word-list-area {
+      min-width: 250px;
+      padding: 20px;
+      background: #111;
+      border-radius: 1rem;
+      margin-left: 20px;
+      height: 80vh;
+      overflow-y: auto;
+    }
+
+    .found-word {
       color: #fff;
-      background: rgb(230, 79, 48);
-      border: 2px solid #000;
-      user-select: none;
-      cursor: pointer;
-      transition: background 0.2s, color 0.2s;
+      font-size: 1.2rem;
+      margin-bottom: 8px;
+      transition: background 0.3s;
+      padding: 2px 8px;
+      border-radius: 6px;
     }
 
-    .boggle-td.selected {
-      background: #fff;
-      color: rgb(230, 79, 48);
+    .flash {
+      animation: flash 0.8s linear;
+    }
+
+    @keyframes flash {
+      0% {
+        background: #fff;
+        color: rgb(230, 79, 48);
+      }
+
+      50% {
+        background: rgb(230, 79, 48);
+        color: #fff;
+      }
+
+      100% {
+        background: #fff;
+        color: rgb(230, 79, 48);
+      }
     }
   </style>
 </head>
 
 <body>
-  <h1>Boggle 8x8</h1>
-  <div id="boggleBoard"></div>
-  <div id="currentWord" style="font-size:1.2rem; margin-bottom:10px;"></div>
-  <div id="foundWords" style="font-size:1rem;"></div>
+  <div class="container-fluid d-flex flex-row justify-content-center align-items-center" style="min-height: 100vh;">
+    <div id="game-area" class="position-relative flex-grow-1 d-flex justify-content-center align-items-center"
+      style="min-width: 0;">
+      <canvas id="boggle-canvas" width="600" height="600"></canvas>
+      <svg id="svg-overlay" width="600" height="600" style="position:absolute;top:0;left:0;"></svg>
+    </div>
+    <div class="word-list-area">
+      <h4>Palavras Formadas</h4>
+      <div id="found-words"></div>
+    </div>
+  </div>
+  <!-- Bootstrap JS Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    const boardSize = 8;
-    const board = Array.from({ length: boardSize }, () => Array(boardSize).fill(''));
+    const boardSize = 4;
+    let cellSize = 150;
+    let board = Array.from({ length: boardSize }, () => Array(boardSize).fill(''));
     let selectedTiles = [];
     let foundWords = [];
+    let drawnWords = [];
     let dictionary = [];
     let isDragging = false;
+    let canvas = document.getElementById('boggle-canvas');
+    let ctx = canvas.getContext('2d');
+    let svg = document.getElementById('svg-overlay');
+    let offsetX = canvas.getBoundingClientRect().left + window.scrollX;
+    let offsetY = canvas.getBoundingClientRect().top + window.scrollY;
 
-    // Função para carregar o dicionário
+    // Carrega o dicionário e inicializa o jogo
     fetch('mydictionary.txt')
       .then(response => response.text())
       .then(text => {
-        dictionary = text.split(/\r?\n/).map(w => w.trim().toUpperCase()).filter(w => w.length > 0);
-        fillBoardWithWords();
+        dictionary = text.split(/\r?\n/).map(w => w.trim().toUpperCase()).filter(w => w.length > 2);
+        drawWordsOnBoard();
         renderBoard();
       });
 
-    // Preenche o tabuleiro com palavras do dicionário em todas as direções
-    function fillBoardWithWords() {
-      // Limpa o tabuleiro
-      for (let i = 0; i < boardSize; i++)
-        for (let j = 0; j < boardSize; j++)
-          board[i][j] = '';
-
-      // Direções: [dx, dy]
+    // Sorteia e posiciona palavras no tabuleiro
+    function drawWordsOnBoard() {
+      board = Array.from({ length: boardSize }, () => Array(boardSize).fill(''));
+      drawnWords = [];
       const directions = [
         [0, 1],   // direita
         [1, 0],   // baixo
@@ -88,42 +133,42 @@
         [-1, -1], // diagonal cima-esquerda
         [1, -1],  // diagonal baixo-esquerda
       ];
-
-      // Tenta inserir palavras do dicionário
-      for (const word of dictionary) {
-        let placed = false;
-        for (let attempt = 0; attempt < 100 && !placed; attempt++) {
-          const dir = directions[Math.floor(Math.random() * directions.length)];
-          const reverse = Math.random() < 0.5;
-          const w = reverse ? word.split('').reverse().join('') : word;
-          const len = w.length;
-          const startRow = Math.floor(Math.random() * boardSize);
-          const startCol = Math.floor(Math.random() * boardSize);
-
-          let r = startRow, c = startCol;
-          let fits = true;
+      let used = new Set();
+      let tries = 0;
+      while (drawnWords.length < 8 && tries < 200) {
+        let word = dictionary[Math.floor(Math.random() * dictionary.length)];
+        if (used.has(word)) { tries++; continue; }
+        let dir = directions[Math.floor(Math.random() * directions.length)];
+        let reverse = Math.random() < 0.5;
+        let w = reverse ? word.split('').reverse().join('') : word;
+        let len = w.length;
+        let startRow = Math.floor(Math.random() * boardSize);
+        let startCol = Math.floor(Math.random() * boardSize);
+        let r = startRow, c = startCol;
+        let fits = true;
+        for (let k = 0; k < len; k++) {
+          if (
+            r < 0 || r >= boardSize ||
+            c < 0 || c >= boardSize ||
+            (board[r][c] !== '' && board[r][c] !== w[k])
+          ) {
+            fits = false;
+            break;
+          }
+          r += dir[0];
+          c += dir[1];
+        }
+        if (fits) {
+          r = startRow; c = startCol;
           for (let k = 0; k < len; k++) {
-            if (
-              r < 0 || r >= boardSize ||
-              c < 0 || c >= boardSize ||
-              (board[r][c] !== '' && board[r][c] !== w[k])
-            ) {
-              fits = false;
-              break;
-            }
+            board[r][c] = w[k];
             r += dir[0];
             c += dir[1];
           }
-          if (fits) {
-            r = startRow; c = startCol;
-            for (let k = 0; k < len; k++) {
-              board[r][c] = w[k];
-              r += dir[0];
-              c += dir[1];
-            }
-            placed = true;
-          }
+          drawnWords.push(word);
+          used.add(word);
         }
+        tries++;
       }
       // Preenche espaços vazios com letras aleatórias
       const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -133,77 +178,131 @@
             board[i][j] = letters[Math.floor(Math.random() * letters.length)];
     }
 
-    // Renderiza o tabuleiro
+    // Renderiza o tabuleiro no canvas
     function renderBoard() {
-      const boardDiv = document.getElementById('boggleBoard');
-      let table = document.createElement('table');
-      table.className = 'boggle-table';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      svg.innerHTML = '';
       for (let i = 0; i < boardSize; i++) {
-        let tr = document.createElement('tr');
         for (let j = 0; j < boardSize; j++) {
-          let td = document.createElement('td');
-          td.className = 'boggle-td';
-          td.textContent = board[i][j];
-          td.dataset.row = i;
-          td.dataset.col = j;
-          if (selectedTiles.some(t => t.row === i && t.col === j)) {
-            td.classList.add('selected');
-          }
-          tr.appendChild(td);
+          // Tile
+          ctx.fillStyle = "rgb(230, 79, 48)";
+          ctx.fillRect(j * cellSize, i * cellSize, cellSize, cellSize);
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = 4;
+          ctx.strokeRect(j * cellSize, i * cellSize, cellSize, cellSize);
+          // Letter
+          ctx.font = "bold 64px Arial";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = "#fff";
+          ctx.fillText(board[i][j], j * cellSize + cellSize / 2, i * cellSize + cellSize / 2);
         }
-        table.appendChild(tr);
       }
-      boardDiv.innerHTML = '';
-      boardDiv.appendChild(table);
+      // Highlight selected tiles with SVG
+      if (selectedTiles.length > 0) {
+        selectedTiles.forEach(({ row, col }) => {
+          let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          // Ajuste para alinhar com a grade do canvas (considerando a largura da borda)
+          rect.setAttribute("x", col * cellSize + 2);
+          rect.setAttribute("y", row * cellSize + 2);
+          rect.setAttribute("width", cellSize - 4);
+          rect.setAttribute("height", cellSize - 4);
+          rect.setAttribute("fill", "#fff");
+          rect.setAttribute("fill-opacity", "0.3");
+          rect.setAttribute("stroke", "#fff");
+          rect.setAttribute("stroke-width", "6");
+          svg.appendChild(rect);
+        });
+      }
     }
 
-    // Eventos de mouse para seleção
-    document.getElementById('boggleBoard').addEventListener('mousedown', e => {
-      if (e.target.classList.contains('boggle-td')) {
-        isDragging = true;
-        selectedTiles = [];
-        selectTile(e.target);
-        renderBoard();
-        updateCurrentWord();
-      }
+    // Mouse events para seleção
+    canvas.addEventListener('mousedown', e => {
+      isDragging = true;
+      selectedTiles = [];
+      handleSelection(e);
+      renderBoard();
     });
-    document.getElementById('boggleBoard').addEventListener('mouseover', e => {
-      if (isDragging && e.target.classList.contains('boggle-td')) {
-        selectTile(e.target);
+    canvas.addEventListener('mousemove', e => {
+      if (isDragging) {
+        handleSelection(e);
         renderBoard();
-        updateCurrentWord();
       }
     });
     document.addEventListener('mouseup', () => {
       if (isDragging) {
         isDragging = false;
-        renderBoard();
         checkWord();
-        updateCurrentWord();
+        selectedTiles = [];
+        renderBoard();
       }
     });
 
-    function selectTile(tile) {
-      const row = parseInt(tile.dataset.row);
-      const col = parseInt(tile.dataset.col);
-      if (!selectedTiles.some(t => t.row === row && t.col === col)) {
+    function handleSelection(e) {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const col = Math.floor(x / cellSize);
+      const row = Math.floor(y / cellSize);
+      if (
+        row >= 0 && row < boardSize &&
+        col >= 0 && col < boardSize &&
+        !selectedTiles.some(t => t.row === row && t.col === col)
+      ) {
         selectedTiles.push({ row, col, letter: board[row][col] });
       }
     }
 
-    function updateCurrentWord() {
-      const word = selectedTiles.map(t => t.letter).join('');
-      document.getElementById('currentWord').textContent = word;
-    }
-
+    // Checa se a palavra formada está entre as sorteadas
     function checkWord() {
       const word = selectedTiles.map(t => t.letter).join('');
-      if (word.length > 2 && dictionary.includes(word) && !foundWords.includes(word)) {
-        foundWords.push(word);
-        document.getElementById('foundWords').textContent = foundWords.join(', ');
+      const reversed = selectedTiles.map(t => t.letter).reverse().join('');
+      let found = null;
+      if (drawnWords.includes(word)) found = word;
+      else if (drawnWords.includes(reversed)) found = reversed;
+      if (found && !foundWords.includes(found)) {
+        foundWords.push(found);
+        addFoundWord(found, true);
+      } else if (word.length > 2) {
+        addFoundWord(word, false);
       }
-      selectedTiles = [];
     }
+
+    // Adiciona palavra formada na lateral
+    function addFoundWord(word, flash) {
+      const div = document.createElement('div');
+      div.className = 'found-word' + (flash ? ' flash' : '');
+      div.textContent = word;
+      document.getElementById('found-words').appendChild(div);
+      if (flash) {
+        setTimeout(() => div.classList.remove('flash'), 800);
+      }
+    }
+
+    // Garante que o canvas e SVG fiquem visíveis e centralizados ao carregar
+    window.addEventListener('DOMContentLoaded', () => {
+      renderBoard();
+      // Ajusta o tamanho do canvas e SVG para ocupar 80% da menor dimensão da tela
+      const minDim = Math.min(window.innerWidth * 0.8, window.innerHeight * 0.8);
+      canvas.width = minDim;
+      canvas.height = minDim;
+      svg.setAttribute('width', minDim);
+      svg.setAttribute('height', minDim);
+      // Atualiza cellSize para manter o grid 4x4 proporcional
+      cellSize = minDim / boardSize;
+      renderBoard();
+    });
+
+    // Redimensiona o jogo ao mudar o tamanho da janela
+    window.addEventListener('resize', () => {
+      const minDim = Math.min(window.innerWidth * 0.8, window.innerHeight * 0.8);
+      canvas.width = minDim;
+      canvas.height = minDim;
+      svg.setAttribute('width', minDim);
+      svg.setAttribute('height', minDim);
+      cellSize = minDim / boardSize;
+      renderBoard();
+    });
   </script>
 </body>
 
