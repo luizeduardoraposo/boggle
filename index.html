@@ -4,8 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Boggle Canvas & SVG</title>
-  <!-- Bootstrap CSS -->
+  <title>Boggle Table</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body {
@@ -26,18 +25,55 @@
       position: relative;
     }
 
-    #boggle-canvas {
-      display: block;
+    .boggle-table {
+      border-collapse: separate;
+      border-spacing: 8px;
+      margin: 0 auto;
       background: rgb(230, 79, 48);
       border-radius: 1rem;
-      margin: 20px;
     }
 
-    #svg-overlay {
-      position: absolute;
-      left: 0;
-      top: 0;
-      pointer-events: none;
+    .boggle-td {
+      width: 100px;
+      height: 100px;
+      text-align: center;
+      vertical-align: middle;
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: #fff;
+      background: rgb(230, 79, 48);
+      border: 2px solid #000;
+      user-select: none;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      border-radius: 12px;
+    }
+
+    .boggle-td.selected {
+      background: #fff;
+      color: rgb(230, 79, 48);
+      box-shadow: 0 0 20px #ffc107;
+    }
+
+    .boggle-td.flash {
+      animation: flash 0.8s linear;
+    }
+
+    @keyframes flash {
+      0% {
+        background: #fff;
+        color: rgb(230, 79, 48);
+      }
+
+      50% {
+        background: rgb(230, 79, 48);
+        color: #fff;
+      }
+
+      100% {
+        background: #fff;
+        color: rgb(230, 79, 48);
+      }
     }
 
     .word-list-area {
@@ -59,25 +95,8 @@
       border-radius: 6px;
     }
 
-    .flash {
+    .found-word.flash {
       animation: flash 0.8s linear;
-    }
-
-    @keyframes flash {
-      0% {
-        background: #fff;
-        color: rgb(230, 79, 48);
-      }
-
-      50% {
-        background: rgb(230, 79, 48);
-        color: #fff;
-      }
-
-      100% {
-        background: #fff;
-        color: rgb(230, 79, 48);
-      }
     }
   </style>
 </head>
@@ -85,29 +104,23 @@
 <body>
   <div class="container-fluid d-flex flex-row justify-content-center align-items-center" style="min-height: 100vh;">
     <div id="game-area" class="flex-grow-1 d-flex justify-content-center align-items-center" style="min-width: 0;">
-      <canvas id="boggle-canvas"></canvas>
-      <svg id="svg-overlay" style="position:absolute;top:0;left:0;"></svg>
+      <div id="boggle-board"></div>
     </div>
     <div class="word-list-area">
       <h4>Palavras Formadas</h4>
       <div id="found-words"></div>
     </div>
   </div>
-  <!-- Bootstrap JS Bundle -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     const boardSize = 4;
-    let cellSize = 150;
     let board = [];
     let selectedTiles = [];
     let foundWords = [];
     let drawnWords = [];
     let dictionary = [];
     let isDragging = false;
-    const canvas = document.getElementById('boggle-canvas');
-    const ctx = canvas.getContext('2d');
-    const svg = document.getElementById('svg-overlay');
-    const foundWordsDiv = document.getElementById('found-words');
+    let flashTiles = [];
 
     // Utilitário para sortear e posicionar palavras
     function drawWordsOnBoard() {
@@ -151,51 +164,45 @@
             board[i][j] = letters[Math.floor(Math.random() * letters.length)];
     }
 
-    // Renderização otimizada do tabuleiro
+    // Renderização do tabuleiro usando tabela HTML
     function renderBoard() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      svg.innerHTML = '';
-      ctx.font = `bold ${Math.floor(cellSize * 0.45)}px Arial`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
+      const boardDiv = document.getElementById('boggle-board');
+      let table = document.createElement('table');
+      table.className = 'boggle-table';
       for (let i = 0; i < boardSize; i++) {
+        let tr = document.createElement('tr');
         for (let j = 0; j < boardSize; j++) {
-          ctx.fillStyle = "rgb(230, 79, 48)";
-          ctx.fillRect(j * cellSize, i * cellSize, cellSize, cellSize);
-          ctx.strokeStyle = "#000";
-          ctx.lineWidth = 4;
-          ctx.strokeRect(j * cellSize, i * cellSize, cellSize, cellSize);
-          ctx.fillStyle = "#fff";
-          ctx.fillText(board[i][j], j * cellSize + cellSize / 2, i * cellSize + cellSize / 2);
+          let td = document.createElement('td');
+          td.className = 'boggle-td';
+          td.textContent = board[i][j];
+          td.dataset.row = i;
+          td.dataset.col = j;
+          if (selectedTiles.some(t => t.row === i && t.col === j)) {
+            td.classList.add('selected');
+          }
+          if (flashTiles.some(t => t.row === i && t.col === j)) {
+            td.classList.add('flash');
+          }
+          tr.appendChild(td);
         }
+        table.appendChild(tr);
       }
-      selectedTiles.forEach(({ row, col }) => {
-        let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        rect.setAttribute("x", col * cellSize + 2);
-        rect.setAttribute("y", row * cellSize + 2);
-        rect.setAttribute("width", cellSize - 4);
-        rect.setAttribute("height", cellSize - 4);
-        rect.setAttribute("fill", "#fff");
-        rect.setAttribute("fill-opacity", "0.3");
-        rect.setAttribute("stroke", "#fff");
-        rect.setAttribute("stroke-width", "6");
-        svg.appendChild(rect);
-      });
+      boardDiv.innerHTML = '';
+      boardDiv.appendChild(table);
     }
 
-    // Seleção otimizada via mouse
+    // Seleção via mouse
     function handleSelection(e) {
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const col = Math.floor(x / cellSize);
-      const row = Math.floor(y / cellSize);
+      if (!e.target.classList.contains('boggle-td')) return;
+      const row = parseInt(e.target.dataset.row);
+      const col = parseInt(e.target.dataset.col);
       if (
         row >= 0 && row < boardSize &&
         col >= 0 && col < boardSize &&
         !selectedTiles.some(t => t.row === row && t.col === col)
       ) {
         selectedTiles.push({ row, col, letter: board[row][col] });
+        renderBoard();
       }
     }
 
@@ -207,12 +214,19 @@
       if (found && !foundWords.includes(found)) {
         foundWords.push(found);
         addFoundWord(found, true);
+        flashTiles = [...selectedTiles];
+        renderBoard();
+        setTimeout(() => {
+          flashTiles = [];
+          renderBoard();
+        }, 800);
       } else if (word.length > 2) {
         addFoundWord(word, false);
       }
     }
 
     function addFoundWord(word, flash) {
+      const foundWordsDiv = document.getElementById('found-words');
       const div = document.createElement('div');
       div.className = 'found-word' + (flash ? ' flash' : '');
       div.textContent = word;
@@ -222,12 +236,7 @@
 
     // Inicialização e responsividade
     function resizeBoard() {
-      const minDim = Math.min(window.innerWidth * 0.8, window.innerHeight * 0.8);
-      canvas.width = minDim;
-      canvas.height = minDim;
-      svg.setAttribute('width', minDim);
-      svg.setAttribute('height', minDim);
-      cellSize = minDim / boardSize;
+      // Responsivo via Bootstrap, não precisa ajustar tamanho da tabela
       renderBoard();
     }
 
@@ -243,16 +252,16 @@
 
     window.addEventListener('resize', resizeBoard);
 
-    canvas.addEventListener('mousedown', e => {
-      isDragging = true;
-      selectedTiles = [];
-      handleSelection(e);
-      renderBoard();
-    });
-    canvas.addEventListener('mousemove', e => {
-      if (isDragging) {
+    document.addEventListener('mousedown', e => {
+      if (e.target.classList.contains('boggle-td')) {
+        isDragging = true;
+        selectedTiles = [];
         handleSelection(e);
-        renderBoard();
+      }
+    });
+    document.addEventListener('mouseover', e => {
+      if (isDragging && e.target.classList.contains('boggle-td')) {
+        handleSelection(e);
       }
     });
     document.addEventListener('mouseup', () => {
