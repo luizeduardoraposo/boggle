@@ -14,15 +14,15 @@
     }
 
     #game-area {
-      background: rgb(230, 79, 48);
+      background: #000;
       border-radius: 1rem;
       display: flex;
       align-items: center;
       justify-content: center;
       min-height: 80vh;
       min-width: 80vw;
-      box-shadow: 0 0 20px #222;
       position: relative;
+      /* box-shadow removido */
     }
 
     .boggle-table {
@@ -102,7 +102,8 @@
 </head>
 
 <body>
-  <div class="container-fluid d-flex flex-row justify-content-center align-items-center" style="min-height: 100vh;">
+  <div class="container-fluid d-flex flex-row justify-content-center align-items-center"
+    style="min-height: 100vh; background: #000;">
     <div id="game-area" class="flex-grow-1 d-flex justify-content-center align-items-center" style="min-width: 0;">
       <div id="boggle-board"></div>
     </div>
@@ -189,6 +190,11 @@
       }
       boardDiv.innerHTML = '';
       boardDiv.appendChild(table);
+
+      // Ajusta o tamanho da área do jogo para igualar ao da tabela
+      const gameArea = document.getElementById('game-area');
+      gameArea.style.width = table.offsetWidth + 'px';
+      gameArea.style.height = table.offsetHeight + 'px';
     }
 
     // Seleção via mouse
@@ -236,7 +242,6 @@
 
     // Inicialização e responsividade
     function resizeBoard() {
-      // Responsivo via Bootstrap, não precisa ajustar tamanho da tabela
       renderBoard();
     }
 
